@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tx="http://www.springframework.org/schema/tx"
+  xmlns:aop="http://www.springframework.org/schema/aop"
+  xmlns:context="http://www.springframework.org/schema/context"
+  xsi:schemaLocation="
+  http://www.springframework.org/schema/beans 
+  http://www.springframework.org/schema/beans/spring-beans-4.0.xsd 
+  http://www.springframework.org/schema/tx 
+  http://www.springframework.org/schema/tx/spring-tx-4.0.xsd
+  http://www.springframework.org/schema/aop 
+  http://www.springframework.org/schema/aop/spring-aop-4.0.xsd
+  http://www.springframework.org/schema/context 
+  http://www.springframework.org/schema/context/spring-context-4.0.xsd
+  ">
+   <context:property-placeholder location="classpath:database.properties" />
+  <bean class="com.atomikos.jdbc.AtomikosDataSourceBean" init-method="init" destroy-method="close" id="dataSource01">
+        <!-- Set unique name for this DataSource -->  
+        <property name="uniqueResourceName"><value>mysql1</value></property>
+        <!-- Set XADatasource class name -->  
+        <!-- <property name="xaDataSourceClassName" value="oracle.jdbc.xa.client.OracleXADataSource" /> -->
+        <property name="xaDataSourceClassName" value="com.mysql.jdbc.jdbc2.optional.MysqlXADataSource" />
+        <property name="xaProperties">
+            <props>
+                <prop key="user">root</prop>
+                <prop key="password">root</prop>
+                <prop key="URL">jdbc:mysql://128.130.11.38:3306/test</prop>
+            </props>
+        </property> 
+        <!-- set properties for datasource connection pool -->  
+        <property name="poolSize" value="3" />
+        <!-- timeout after 20000 seconds -->
+        <property name="reapTimeout"><value>20000</value></property>  
+    </bean>
+    <bean id="sessionFactory01"
+        class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+        <property name="dataSource" ref="dataSource01" />
+        <property name="packagesToScan">
+            <list>
+                <value>com.feng.model</value>
+            </list>
+        </property>
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">
+                    org.hibernate.dialect.MySQLDialect
+                </prop>
+                <prop key="hibernate.show_sql">true</prop>
+                <prop key="hibernate.current_session_context_class">jta</prop>
+                <prop key="hibernate.transaction.factory_class">org.hibernate.transaction.JTATransactionFactory</prop>
+            </props>
+        </property>
+    </bean>
+
+
+    <!-- oracleDAO -->
+   <!--  <bean id="hibernateDAO01" class="org.cpframework.dao.hibernate4.CP_Hibernate4DAOImpl">
+      <property name="sessionFactory" ref="sessionFactory01"></property>
+    </bean> -->
+    
+    
+    
+    <bean class="com.atomikos.jdbc.AtomikosDataSourceBean" init-method="init" destroy-method="close" id="dataSource02">
+        <!-- Set unique name for this DataSource -->  
+        <property name="uniqueResourceName"><value>mysql</value></property>
+        <!-- Set XADatasource class name -->
+        <property name="xaDataSourceClassName" value="com.mysql.jdbc.jdbc2.optional.MysqlXADataSource" />
+        
+        <property name="xaProperties">
+            <props>
+                <prop key="user">root</prop>
+                <prop key="password">root</prop>
+                <prop key="URL">jdbc:mysql://128.130.11.38:3306/test2</prop>
+            </props>
+        </property> 
+        <!-- set properties for datasource connection pool -->  
+        <property name="poolSize" value="3" />
+       
+        <property name="reapTimeout"><value>20000</value></property>  
+    </bean>
+    
+  
+    
+    
+    
+    <bean id="sessionFactory02"
+        class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+        <property name="dataSource" ref="dataSource02" />
+        <property name="packagesToScan">
+            <list>
+                <value>com.feng.model2</value>
+            </list>
+        </property>
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">
+                    org.hibernate.dialect.MySQLDialect
+                </prop>
+                <prop key="hibernate.show_sql">true</prop>
+                <prop key="hibernate.current_session_context_class">jta</prop>
+                <prop key="hibernate.transaction.factory_class">org.hibernate.transaction.JTATransactionFactory</prop>
+            </props>
+        </property>
+    </bean>
+
+
+    <!-- mysqlDAO -->
+   <!--  <bean id="hibernateDAO02" class="org.cpframework.dao.hibernate4.CP_Hibernate4DAOImpl">
+      <property name="sessionFactory" ref="sessionFactory02"></property>
+    </bean> -->
+    
+ 
+    <!-- atomikos事务管理器 -->
+    <bean id="atomikosTransactionManager" class="com.atomikos.icatch.jta.UserTransactionManager" 
+        init-method="init" destroy-method="close">
+        <description>UserTransactionManager</description>  
+        <property name="forceShutdown">
+            <value>true</value>
+        </property>
+    </bean>
+
+    <bean id="atomikosUserTransaction" class="com.atomikos.icatch.jta.UserTransactionImp">
+        <property name="transactionTimeout" value="300" />
+    </bean>
+        
+    <!-- spring 事务管理器 -->
+    <bean id="transactionManager"
+        class="org.springframework.transaction.jta.JtaTransactionManager">
+        <property name="transactionManager" ref="atomikosTransactionManager"/>
+        <property name="userTransaction" ref="atomikosUserTransaction" />
+        <property name="allowCustomIsolationLevels" value="true"/> 
+    </bean>
+
+ <aop:config proxy-target-class="true">
+        <aop:pointcut id="servicePoint"
+            expression="execution (* com.feng.service.*.*(..))" />
+        <aop:advisor pointcut-ref="servicePoint" id="txAdvisor"
+            advice-ref="defaultTxAdvice" />
+    </aop:config>
+
+  <tx:advice id="defaultTxAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+            <tx:method name="find*" read-only="true" />
+            <tx:method name="get*" read-only="true" />
+            <tx:method name="query*" read-only="true" />
+            <tx:method name="load*" read-only="true" />
+            <tx:method name="add*" propagation="REQUIRED" rollback-for="java.lang.Exception" />
+            <tx:method name="create*" propagation="REQUIRED"
+                rollback-for="java.lang.Exception" />
+            <tx:method name="save*" propagation="REQUIRED"
+                rollback-for="java.lang.Exception" />
+            <tx:method name="update*" propagation="REQUIRED"
+                rollback-for="java.lang.Exception" />
+            <tx:method name="modify*" propagation="REQUIRED"
+                rollback-for="java.lang.Exception" />
+            <tx:method name="delete*" propagation="REQUIRED"
+                rollback-for="java.lang.Exception" />
+            <tx:method name="remove*" propagation="REQUIRED"
+                rollback-for="java.lang.Exception" />
+            <tx:method name="apply*" propagation="REQUIRED"
+                rollback-for="java.lang.Exception" />
+            <tx:method name="handle*" propagation="REQUIRED"
+                rollback-for="java.lang.Exception" />
+                <tx:method name="do*" propagation="REQUIRED"
+                rollback-for="java.lang.Exception" />
+        </tx:attributes>
+    </tx:advice>
+  
+</beans>
